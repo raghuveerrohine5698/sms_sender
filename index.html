@@ -132,7 +132,7 @@
             status.innerHTML = '<div class="spinner"></div>Sending messages...';
             
             try {
-                const response = await fetch('http://localhost:8080/api/bulk-sms', {
+                const response = await fetch('http://3.110.218.45:8080/api/bulk-sms', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
