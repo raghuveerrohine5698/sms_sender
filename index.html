@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk SMS Sender</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .container {
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        textarea {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .progress {
+            margin-top: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>Bulk SMS Sender</h1>
+    <div class="container">
+        <form id="smsForm" onsubmit="sendBulkSMS(event)">
+            <div class="input-group">
+                <label for="toNumbers">TO Numbers (One per line):</label>
+                <textarea id="toNumbers" rows="5" required placeholder="+919876543210&#10;+919876543211&#10;+919876543212"></textarea>
+            </div>
+            <div class="input-group">
+                <label for="fromNumbers">FROM Numbers (One per line):</label>
+                <textarea id="fromNumbers" rows="5" required placeholder="+17753063763&#10;+17753063764&#10;+17753063765"></textarea>
+            </div>
+            <div class="input-group">
+                <label for="messageBody">Message Body:</label>
+                <textarea id="messageBody" rows="4" required placeholder="Enter your message here..."></textarea>
+            </div>
+            <button type="submit">Send Bulk SMS</button>
+        </form>
+    </div>
+    <div id="status"></div>
+    <div class="progress" id="progress"></div>
+
+    <script>
+        async function sendBulkSMS(event) {
+            event.preventDefault();
+            
+            const toNumbers = document.getElementById('toNumbers').value.split('\n').filter(n => n.trim());
+            const fromNumbers = document.getElementById('fromNumbers').value.split('\n').filter(n => n.trim());
+            const messageBody = document.getElementById('messageBody').value;
+            const status = document.getElementById('status');
+            const progress = document.getElementById('progress');
+            
+            status.style.display = 'block';
+            status.style.backgroundColor = '#fff3cd';
+            status.innerHTML = 'Sending messages...';
+            
+            try {
+                for (let i = 0; i < toNumbers.length; i++) {
+                    const fromNumber = fromNumbers[i % fromNumbers.length]; // Cycle through from numbers
+                    
+                    progress.innerHTML = `Sending message ${i + 1} of ${toNumbers.length}...`;
+                    
+                    const response = await fetch('/api/sms', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            to: toNumbers[i].trim(),
+                            from: fromNumber.trim(),
+                            message: messageBody
+                        })
+                    });
+                    
+                    if (!response.ok) throw new Error(`Failed to send SMS to ${toNumbers[i]}`);
+                    
+                    // Wait for 3 seconds before sending next message
+                    if (i < toNumbers.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                    }
+                }
+                
+                status.style.backgroundColor = '#d4edda';
+                status.innerHTML = 'All messages sent successfully!';
+                progress.innerHTML = '';
+                
+            } catch (error) {
+                status.style.backgroundColor = '#f8d7da';
+                status.innerHTML = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
