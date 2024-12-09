@@ -90,7 +90,7 @@
             status.innerHTML = 'Sending messages...';
             
             try {
-                const response = await fetch('/api/bulk-sms', {
+                const response = await fetch('http://localhost:8080/api/bulk-sms', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
