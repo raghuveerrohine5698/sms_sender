@@ -41,15 +41,51 @@
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            transition: background-color 0.3s;
         }
         button:hover {
             background-color: #45a049;
         }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
         #status {
             margin-top: 20px;
-            padding: 10px;
+            padding: 15px;
             border-radius: 4px;
             display: none;
+        }
+        .status-table {
+            width: 100%;
+            margin-top: 15px;
+            border-collapse: collapse;
+        }
+        .status-table th, .status-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .status-table th {
+            background-color: #f8f9fa;
+        }
+        .status-success { color: #28a745; }
+        .status-error { color: #dc3545; }
+        .status-pending { color: #ffc107; }
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -69,15 +105,19 @@
                 <label for="messageBody">Message Body:</label>
                 <textarea id="messageBody" rows="4" required placeholder="Enter your message here..."></textarea>
             </div>
-            <button type="submit">Send Bulk SMS</button>
+            <button type="submit" id="sendButton">Send Bulk SMS</button>
         </form>
     </div>
     <div id="status"></div>
 
     <script>
+        let currentBatchId = null;
+        let statusCheckInterval = null;
+
         async function sendBulkSMS(event) {
             event.preventDefault();
             
+            const sendButton = document.getElementById('sendButton');
             const fromNumber = document.getElementById('fromNumber').value.trim();
             const toNumbers = document.getElementById('toNumbers').value.split('\n')
                 .map(num => num.trim())
@@ -85,9 +125,11 @@
             const messageBody = document.getElementById('messageBody').value;
             const status = document.getElementById('status');
             
+            // Disable button and show initial status
+            sendButton.disabled = true;
             status.style.display = 'block';
             status.style.backgroundColor = '#fff3cd';
-            status.innerHTML = 'Sending messages...';
+            status.innerHTML = '<div class="spinner"></div>Sending messages...';
             
             try {
                 const response = await fetch('http://localhost:8080/api/bulk-sms', {
@@ -107,12 +149,83 @@
                 }
                 
                 const result = await response.json();
-                status.style.backgroundColor = '#d4edda';
-                status.innerHTML = 'Messages queued for sending! ' + result.message;
+                currentBatchId = result.batchId;
+                
+                // Create status table
+                updateStatusDisplay(result.statuses);
+                
+                // Start polling for status updates
+                startStatusPolling();
                 
             } catch (error) {
                 status.style.backgroundColor = '#f8d7da';
                 status.innerHTML = 'Error: ' + error.message;
+                sendButton.disabled = false;
+            }
+        }
+
+        function updateStatusDisplay(statuses) {
+            const status = document.getElementById('status');
+            let html = '<h3>Message Status</h3>';
+            html += '<table class="status-table"><thead><tr><th>Phone Number</th><th>Status</th><th>Details</th></tr></thead><tbody>';
+            
+            for (const [phone, details] of Object.entries(statuses)) {
+                let statusClass = '';
+                switch(details.status) {
+                    case 'SENT':
+                        statusClass = 'status-success';
+                        break;
+                    case 'FAILED':
+                        statusClass = 'status-error';
+                        break;
+                    default:
+                        statusClass = 'status-pending';
+                }
+                
+                html += `<tr>
+                    <td>${phone}</td>
+                    <td class="${statusClass}">${details.status}</td>
+                    <td>${details.error || details.messageId || 'Pending...'}</td>
+                </tr>`;
+            }
+            
+            html += '</tbody></table>';
+            status.style.backgroundColor = '#ffffff';
+            status.innerHTML = html;
+        }
+
+        async function checkStatus() {
+            try {
+                const response = await fetch(`http://localhost:8080/api/bulk-sms/${currentBatchId}/status`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch status');
+                }
+                
+                const statuses = await response.json();
+                updateStatusDisplay(statuses);
+                
+                // Check if all messages are processed
+                const allProcessed = Object.values(statuses)
+                    .every(status => status.status === 'SENT' || status.status === 'FAILED');
+                
+                if (allProcessed) {
+                    stopStatusPolling();
+                    document.getElementById('sendButton').disabled = false;
+                }
+                
+            } catch (error) {
+                console.error('Status check failed:', error);
+            }
+        }
+
+        function startStatusPolling() {
+            statusCheckInterval = setInterval(checkStatus, 3000); // Check every 3 seconds
+        }
+
+        function stopStatusPolling() {
+            if (statusCheckInterval) {
+                clearInterval(statusCheckInterval);
+                statusCheckInterval = null;
             }
         }
     </script>
